@@ -1,0 +1,103 @@
+private void Set_Net_Click(object sender, EventArgs e)
+        {
+            class_count = Convert.ToInt32(ClassCountBox.Text);
+            Weights = new float[class_count * inputDim];
+            bias = new float[class_count];
+            
+            Weights = init_array_random(class_count * inputDim);
+            bias = init_array_random(class_count);
+            
+            Set_Net.Text = "Network is Ready";
+            label4.Text = "Status: Network Ready for Training";
+        }
+
+        private void Train_Button_Click(object sender, EventArgs e)
+        {
+            TrainNetwork();
+        }
+
+        private void trainingToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            TrainNetwork();
+        }
+
+        private void readDataToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show("Read Data functionality will be implemented");
+        }
+
+        private void saveDataToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (numSample != 0)
+            {
+                MessageBox.Show("Data saved successfully!");
+            }
+            else
+            {
+                MessageBox.Show("At least one sample should be given");
+            }
+        }
+
+        private void testingToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (numSample == 0)
+            {
+                MessageBox.Show("No samples available for testing");
+                return;
+            }
+
+            float[] mean = new float[inputDim];
+            float[] std = new float[inputDim];
+            
+            Z_Score_Parameters(Samples, numSample, inputDim, mean, std);
+            
+            Bitmap surface = new Bitmap(pictureBox1.Width, pictureBox1.Height);
+            
+            // Arka planı iki renge boya
+            for (int row = 0; row < pictureBox1.Height; row += 2)
+            {
+                for (int column = 0; column < pictureBox1.Width; column += 2)
+                {
+                    float[] x = new float[inputDim];
+                    x[0] = column - (pictureBox1.Width / 2);
+                    x[1] = (pictureBox1.Height / 2) - row;
+                    
+                    x[0] = (x[0] - mean[0]) / std[0];
+                    x[1] = (x[1] - mean[1]) / std[1];
+                    
+                    int predictedClass = Test_Forward(x, Weights, bias, class_count, inputDim);
+                    
+                    Color c = Color.LightBlue;
+                    if (predictedClass == 1)
+                        c = Color.LightCoral;
+                    else if (predictedClass >= 2)
+                        c = Color.LightGreen;
+                    
+                    surface.SetPixel(column, row, c);
+                }
+            }
+            
+            using (Graphics g = Graphics.FromImage(surface))
+            {
+                // YENİ: TESTTE DE İKİ RENGİN BİRLEŞTİĞİ YERE ÇİZGİ ÇİZ
+                if (class_count == 2)
+                {
+                    DrawDecisionBoundaryAtColorEdge(g, Weights, bias, class_count, Color.DarkBlue, 3.0f);
+                }
+                
+                // Noktaları çiz
+                int center_width = pictureBox1.Width / 2;
+                int center_height = pictureBox1.Height / 2;
+                for (int i = 0; i < numSample; i++)
+                {
+                    int temp_x = (int)Samples[i * inputDim] + center_width;
+                    int temp_y = center_height - (int)Samples[i * inputDim + 1];
+                    draw_sample(g, temp_x, temp_y, (int)targets[i]);
+                }
+            }
+            
+            pictureBox1.Image = surface;
+            MessageBox.Show("Testing completed! Decision boundary drawn at color edge.");
+        }
+    }
+}

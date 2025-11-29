@@ -1,0 +1,915 @@
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+using System.IO;
+using System.Collections.Generic;
+
+namespace Collect
+{
+    public partial class Form1 : Form
+    {
+        private int class_count = 0, numSample = 0, inputDim = 2;
+        private float[] Samples, targets, Weights, bias;
+        private float learningRate = 0.1f;
+        private int epochs = 1000;
+        
+        private PictureBox pictureBox1;
+        private PictureBox trainingGraph;
+        private GroupBox groupBox1, groupBox2;
+        private Button Set_Net, Train_Button;
+        private Label label1, label2, label3, label4;
+        private ComboBox ClassCountBox, ClassNoBox;
+        private MenuStrip menuStrip1;
+        private ToolStripMenuItem fileToolStripMenuItem, readDataToolStripMenuItem, saveDataToolStripMenuItem;
+        private ToolStripMenuItem processToolStripMenuItem, trainingToolStripMenuItem, testingToolStripMenuItem;
+        private TextBox textBox1;
+        private ProgressBar progressBar1;
+        
+        private List<float> errorHistory = new List<float>();
+        private List<float[]> decisionBoundaryHistory = new List<float[]>();
+        private Bitmap graphBitmap;
+
+        public Form1()
+        {
+            InitializeComponent();
+        }
+        
+        private void InitializeComponent()
+        {
+            // Ana PictureBox
+            this.pictureBox1 = new PictureBox();
+            this.pictureBox1.BackColor = SystemColors.ButtonHighlight;
+            this.pictureBox1.Location = new Point(13, 35);
+            this.pictureBox1.Size = new Size(500, 400);
+            this.pictureBox1.Paint += new PaintEventHandler(pictureBox1_Paint);
+            this.pictureBox1.MouseClick += new MouseEventHandler(pictureBox1_MouseClick);
+            
+            // Eğitim Grafiği
+            this.trainingGraph = new PictureBox();
+            this.trainingGraph.BackColor = Color.White;
+            this.trainingGraph.Location = new Point(520, 35);
+            this.trainingGraph.Size = new Size(400, 200);
+            this.trainingGraph.BorderStyle = BorderStyle.FixedSingle;
+            this.trainingGraph.Paint += new PaintEventHandler(trainingGraph_Paint);
+            
+            // GroupBox1 - Network Architecture
+            this.groupBox1 = new GroupBox();
+            this.groupBox1.Location = new Point(520, 250);
+            this.groupBox1.Size = new Size(200, 180);
+            this.groupBox1.Text = "Network Architecture";
+            this.groupBox1.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold);
+            
+            this.ClassCountBox = new ComboBox();
+            this.ClassCountBox.Location = new Point(10, 20);
+            this.ClassCountBox.Size = new Size(82, 21);
+            this.ClassCountBox.Items.AddRange(new object[] {"2", "3", "4", "5", "6", "7"});
+            this.ClassCountBox.Text = "2";
+            
+            this.label1 = new Label();
+            this.label1.Location = new Point(108, 23);
+            this.label1.Size = new Size(69, 13);
+            this.label1.Text = "Sınıf Sayısı";
+            
+            this.Set_Net = new Button();
+            this.Set_Net.Location = new Point(10, 50);
+            this.Set_Net.Size = new Size(131, 25);
+            this.Set_Net.Text = "Network Setting";
+            this.Set_Net.Click += new EventHandler(Set_Net_Click);
+            
+            this.Train_Button = new Button();
+            this.Train_Button.Location = new Point(10, 85);
+            this.Train_Button.Size = new Size(131, 25);
+            this.Train_Button.Text = "Train Network";
+            this.Train_Button.Click += new EventHandler(Train_Button_Click);
+            this.Train_Button.Enabled = false;
+            
+            this.groupBox1.Controls.Add(Set_Net);
+            this.groupBox1.Controls.Add(Train_Button);
+            this.groupBox1.Controls.Add(label1);
+            this.groupBox1.Controls.Add(ClassCountBox);
+            
+            // GroupBox2 - Data Collection
+            this.groupBox2 = new GroupBox();
+            this.groupBox2.Location = new Point(520, 450);
+            this.groupBox2.Size = new Size(190, 80);
+            this.groupBox2.Text = "Data Collection";
+            this.groupBox2.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold);
+            
+            this.ClassNoBox = new ComboBox();
+            this.ClassNoBox.Location = new Point(7, 20);
+            this.ClassNoBox.Size = new Size(75, 21);
+            this.ClassNoBox.Items.AddRange(new object[] {"1", "2", "3", "4", "5", "6", "7", "8", "9"});
+            this.ClassNoBox.Text = "1";
+            
+            this.label2 = new Label();
+            this.label2.Location = new Point(98, 23);
+            this.label2.Size = new Size(81, 13);
+            this.label2.Text = "Örnek Etiketi";
+            
+            this.groupBox2.Controls.Add(label2);
+            this.groupBox2.Controls.Add(ClassNoBox);
+            
+            // Labels
+            this.label3 = new Label();
+            this.label3.Location = new Point(730, 250);
+            this.label3.Size = new Size(150, 20);
+            this.label3.Text = "Samples Count: 0";
+            
+            this.label4 = new Label();
+            this.label4.Location = new Point(730, 280);
+            this.label4.Size = new Size(200, 20);
+            this.label4.Text = "Status: Ready";
+            
+            // ProgressBar
+            this.progressBar1 = new ProgressBar();
+            this.progressBar1.Location = new Point(730, 310);
+            this.progressBar1.Size = new Size(200, 20);
+            this.progressBar1.Visible = false;
+            
+            // TextBox1
+            this.textBox1 = new TextBox();
+            this.textBox1.Location = new Point(730, 350);
+            this.textBox1.Multiline = true;
+            this.textBox1.Size = new Size(200, 180);
+            this.textBox1.ScrollBars = ScrollBars.Vertical;
+            
+            // MenuStrip
+            this.menuStrip1 = new MenuStrip();
+            this.fileToolStripMenuItem = new ToolStripMenuItem();
+            this.fileToolStripMenuItem.Text = "File";
+            
+            this.readDataToolStripMenuItem = new ToolStripMenuItem();
+            this.readDataToolStripMenuItem.Text = "Read_Data";
+            this.readDataToolStripMenuItem.Click += new EventHandler(readDataToolStripMenuItem_Click);
+            
+            this.saveDataToolStripMenuItem = new ToolStripMenuItem();
+            this.saveDataToolStripMenuItem.Text = "Save_Data";
+            this.saveDataToolStripMenuItem.Click += new EventHandler(saveDataToolStripMenuItem_Click);
+            
+            this.fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] {
+                readDataToolStripMenuItem, saveDataToolStripMenuItem});
+                
+            this.processToolStripMenuItem = new ToolStripMenuItem();
+            this.processToolStripMenuItem.Text = "Process";
+            
+            this.trainingToolStripMenuItem = new ToolStripMenuItem();
+            this.trainingToolStripMenuItem.Text = "Training";
+            this.trainingToolStripMenuItem.Click += new EventHandler(trainingToolStripMenuItem_Click);
+            this.trainingToolStripMenuItem.Enabled = false;
+            
+            this.testingToolStripMenuItem = new ToolStripMenuItem();
+            this.testingToolStripMenuItem.Text = "Testing";
+            this.testingToolStripMenuItem.Click += new EventHandler(testingToolStripMenuItem_Click);
+            
+            this.processToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] {
+                trainingToolStripMenuItem, testingToolStripMenuItem});
+            
+            this.menuStrip1.Items.AddRange(new ToolStripItem[] {
+                fileToolStripMenuItem, processToolStripMenuItem});
+            
+            // Form
+            this.Text = "Neural Network - Live Training with Decision Lines";
+            this.Size = new Size(950, 650);
+            this.Controls.Add(pictureBox1);
+            this.Controls.Add(trainingGraph);
+            this.Controls.Add(groupBox1);
+            this.Controls.Add(groupBox2);
+            this.Controls.Add(label3);
+            this.Controls.Add(label4);
+            this.Controls.Add(progressBar1);
+            this.Controls.Add(textBox1);
+            this.Controls.Add(menuStrip1);
+            this.MainMenuStrip = menuStrip1;
+            
+            graphBitmap = new Bitmap(trainingGraph.Width, trainingGraph.Height);
+        }
+
+        // YENİ: KARAR SINIRI ÇİZME FONKSİYONU
+        private void DrawDecisionBoundary(Graphics g, float[] weights, float[] bias, int classCount, Color color, float lineWidth = 2.0f)
+        {
+            if (classCount != 2) return; // Sadece 2 sınıf için çizgi çiz
+
+            int width = pictureBox1.Width;
+            int height = pictureBox1.Height;
+            int centerX = width / 2;
+            int centerY = height / 2;
+
+            // Karar sınırı: w1*x + w2*y + b = 0
+            float w1 = weights[0];
+            float w2 = weights[1];
+            float b = bias[0];
+
+            if (Math.Abs(w2) < 0.001f) return; // Dikey çizgiden kaçın
+
+            // Çizgiyi hesapla: y = (-w1*x - b) / w2
+            Pen linePen = new Pen(color, lineWidth);
+            
+            // Sol üst nokta
+            float x1 = -centerX;
+            float y1 = (-w1 * x1 - b) / w2;
+            int screenX1 = centerX + (int)x1;
+            int screenY1 = centerY - (int)y1;
+
+            // Sağ alt nokta
+            float x2 = centerX;
+            float y2 = (-w1 * x2 - b) / w2;
+            int screenX2 = centerX + (int)x2;
+            int screenY2 = centerY - (int)y2;
+
+            // Çizgiyi çiz (ekran sınırları içinde)
+            if (screenY1 >= 0 && screenY1 <= height && screenY2 >= 0 && screenY2 <= height)
+            {
+                g.DrawLine(linePen, screenX1, screenY1, screenX2, screenY2);
+            }
+            else
+            {
+                // Alternatif: x'e göre değil y'ye göre hesapla
+                float y3 = centerY;
+                float x3 = (-w2 * y3 - b) / w1;
+                int screenX3 = centerX + (int)x3;
+                int screenY3 = centerY - (int)y3;
+
+                float y4 = -centerY;
+                float x4 = (-w2 * y4 - b) / w1;
+                int screenX4 = centerX + (int)x4;
+                int screenY4 = centerY - (int)y4;
+
+                if (screenX3 >= 0 && screenX3 <= width && screenX4 >= 0 && screenX4 <= width)
+                {
+                    g.DrawLine(linePen, screenX3, screenY3, screenX4, screenY4);
+                }
+            }
+
+            linePen.Dispose();
+        }
+
+                // YENİ: ANLIK KARAR SINIRINI GÖSTER
+        // DÜZELTİLMİŞ: KARAR SINIRI ÇİZME FONKSİYONU
+        private void DrawDecisionBoundary(Graphics g, float[] weights, float[] bias, int classCount, Color color, float lineWidth = 2.0f)
+        {
+            if (classCount != 2) return;
+
+            int width = pictureBox1.Width;
+            int height = pictureBox1.Height;
+            int centerX = width / 2;
+            int centerY = height / 2;
+
+            // Karar sınırı: w1*x + w2*y + b = 0
+            float w1 = weights[0];
+            float w2 = weights[1];
+            float b = bias[0];
+
+            // Eğer dikey çizgi ise (w2 ≈ 0)
+            if (Math.Abs(w2) < 0.001f)
+            {
+                // x = -b / w1 (dikey çizgi)
+                float x = -b / w1;
+                int screenX = centerX + (int)x;
+                
+                if (screenX >= 0 && screenX <= width)
+                {
+                    Pen linePen = new Pen(color, lineWidth);
+                    g.DrawLine(linePen, screenX, 0, screenX, height);
+                    linePen.Dispose();
+                }
+                return;
+            }
+
+            // Eğim ve kesişim noktasını hesapla
+            // w1*x + w2*y + b = 0 => y = (-w1*x - b) / w2
+            float slope = -w1 / w2;
+            float intercept = -b / w2;
+
+            // Ekran koordinatlarına çevir
+            // Gerçek koordinat: y = slope * x + intercept
+            // Ekran koordinatı: screenY = centerY - y
+
+            // Çizginin ekranın kenarlarında nereye denk geldiğini bul
+            List<Point> intersectionPoints = new List<Point>();
+
+            // Sol kenar (x = -centerX)
+            float leftX = -centerX;
+            float leftY = slope * leftX + intercept;
+            int screenLeftY = centerY - (int)leftY;
+            if (screenLeftY >= 0 && screenLeftY <= height)
+            {
+                intersectionPoints.Add(new Point(0, screenLeftY));
+            }
+
+            // Sağ kenar (x = centerX)
+            float rightX = centerX;
+            float rightY = slope * rightX + intercept;
+            int screenRightY = centerY - (int)rightY;
+            if (screenRightY >= 0 && screenRightY <= height)
+            {
+                intersectionPoints.Add(new Point(width, screenRightY));
+            }
+
+            // Üst kenar (y = centerY) - screenY = 0
+            float topY = centerY;
+            float topX = (topY - intercept) / slope;
+            int screenTopX = centerX + (int)topX;
+            if (screenTopX >= 0 && screenTopX <= width)
+            {
+                intersectionPoints.Add(new Point(screenTopX, 0));
+            }
+
+            // Alt kenar (y = -centerY) - screenY = height
+            float bottomY = -centerY;
+            float bottomX = (bottomY - intercept) / slope;
+            int screenBottomX = centerX + (int)bottomX;
+            if (screenBottomX >= 0 && screenBottomX <= width)
+            {
+                intersectionPoints.Add(new Point(screenBottomX, height));
+            }
+
+            // Benzersiz noktaları bul (köşe noktalarında çakışma olabilir)
+            HashSet<Point> uniquePoints = new HashSet<Point>();
+            foreach (Point p in intersectionPoints)
+            {
+                uniquePoints.Add(p);
+            }
+
+            // Eğer 2 benzersiz nokta varsa çizgiyi çiz
+            if (uniquePoints.Count == 2)
+            {
+                Point[] points = new Point[2];
+                uniquePoints.CopyTo(points, 0);
+                
+                Pen linePen = new Pen(color, lineWidth);
+                g.DrawLine(linePen, points[0], points[1]);
+                linePen.Dispose();
+            }
+            else if (uniquePoints.Count > 2)
+            {
+                // 2'den fazla nokta varsa, en uzak iki noktayı bul
+                Point[] points = new Point[uniquePoints.Count];
+                uniquePoints.CopyTo(points, 0);
+                
+                double maxDistance = 0;
+                Point p1 = points[0], p2 = points[0];
+                
+                for (int i = 0; i < points.Length; i++)
+                {
+                    for (int j = i + 1; j < points.Length; j++)
+                    {
+                        double dist = Math.Sqrt(Math.Pow(points[i].X - points[j].X, 2) + Math.Pow(points[i].Y - points[j].Y, 2));
+                        if (dist > maxDistance)
+                        {
+                            maxDistance = dist;
+                            p1 = points[i];
+                            p2 = points[j];
+                        }
+                    }
+                }
+                
+                Pen linePen = new Pen(color, lineWidth);
+                g.DrawLine(linePen, p1, p2);
+                linePen.Dispose();
+            }
+        }
+
+        // GÜNCELLENMİŞ: draw_sample fonksiyonu (Graphics parametresi ile)
+        private void draw_sample(Graphics g, int temp_x, int temp_y, int label)
+        {
+            Pen pen;
+            switch (label)
+            {
+                case 0: pen = new Pen(Color.Black, 3.0f); break;
+                case 1: pen = new Pen(Color.Red, 3.0f); break;
+                case 2: pen = new Pen(Color.Blue, 3.0f); break;
+                case 3: pen = new Pen(Color.Green, 3.0f); break;
+                case 4: pen = new Pen(Color.Yellow, 3.0f); break;
+                case 5: pen = new Pen(Color.Orange, 3.0f); break;
+                default: pen = new Pen(Color.YellowGreen, 3.0f); break;
+            }
+            
+            g.DrawLine(pen, temp_x - 5, temp_y, temp_x + 5, temp_y);
+            g.DrawLine(pen, temp_x, temp_y - 5, temp_x, temp_y + 5);
+            pen.Dispose();
+        }
+
+        // EĞİTİM GRAFİĞİ ÇİZME (Aynı)
+        private void trainingGraph_Paint(object sender, PaintEventArgs e)
+        {
+            if (errorHistory.Count == 0) return;
+
+            Graphics g = e.Graphics;
+            g.Clear(Color.White);
+
+            Pen borderPen = new Pen(Color.Black, 1);
+            g.DrawRectangle(borderPen, 0, 0, trainingGraph.Width - 1, trainingGraph.Height - 1);
+
+            Pen axisPen = new Pen(Color.Gray, 1);
+            g.DrawLine(axisPen, 30, trainingGraph.Height - 30, trainingGraph.Width - 10, trainingGraph.Height - 30);
+            g.DrawLine(axisPen, 30, 10, 30, trainingGraph.Height - 30);
+
+            Font labelFont = new Font("Arial", 8);
+            g.DrawString("Error", labelFont, Brushes.Black, 5, trainingGraph.Height / 2 - 20);
+            g.DrawString("Epochs", labelFont, Brushes.Black, trainingGraph.Width / 2 - 20, trainingGraph.Height - 25);
+
+            if (errorHistory.Count > 1)
+            {
+                Pen graphPen = new Pen(Color.Red, 2);
+                float maxError = 0;
+                foreach (float error in errorHistory)
+                {
+                    if (error > maxError) maxError = error;
+                }
+                if (maxError == 0) maxError = 1;
+
+                float xScale = (trainingGraph.Width - 50) / (float)(errorHistory.Count - 1);
+                float yScale = (trainingGraph.Height - 50) / maxError;
+
+                for (int i = 0; i < errorHistory.Count - 1; i++)
+                {
+                    float x1 = 30 + i * xScale;
+                    float y1 = trainingGraph.Height - 30 - (errorHistory[i] * yScale);
+                    float x2 = 30 + (i + 1) * xScale;
+                    float y2 = trainingGraph.Height - 30 - (errorHistory[i + 1] * yScale);
+                    
+                    g.DrawLine(graphPen, x1, y1, x2, y2);
+                }
+
+                for (int i = 0; i < errorHistory.Count; i += Math.Max(1, errorHistory.Count / 20))
+                {
+                    float x = 30 + i * xScale;
+                    float y = trainingGraph.Height - 30 - (errorHistory[i] * yScale);
+                    g.FillEllipse(Brushes.Blue, x - 2, y - 2, 4, 4);
+                }
+
+                g.DrawString($"Max Error: {maxError:F4}", labelFont, Brushes.Black, trainingGraph.Width - 120, 15);
+                g.DrawString($"Current: {errorHistory[errorHistory.Count - 1]:F4}", labelFont, Brushes.Black, trainingGraph.Width - 120, 30);
+            }
+        }
+
+        // GRAFİĞİ GÜNCELLE
+        private void UpdateTrainingGraph(float error)
+        {
+            errorHistory.Add(error);
+            trainingGraph.Invalidate();
+            Application.DoEvents();
+        }
+
+        // PROCESS FONKSİYONLARI (Aynı)
+        private float[] Add_Data(float[] sample, int Size, float[] x, int Dim)
+        {
+            float[] temp = new float[Size * Dim];
+            if (Size > 1)
+            {
+                Array.Copy(sample, 0, temp, 0, (Size - 1) * Dim);
+            }
+            Array.Copy(x, 0, temp, (Size - 1) * Dim, Dim);
+            return temp;
+        }
+
+        private float[] Add_Labels(float[] Labels, int Size, int label)
+        {
+            float[] temp = new float[Size];
+            if (Size > 1)
+            {
+                Array.Copy(Labels, 0, temp, 0, Size - 1);
+            }
+            temp[Size - 1] = label;
+            return temp;
+        }
+
+        private float[] init_array_random(int len)
+        {
+            float[] arr = new float[len];
+            Random rand = new Random();
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = (float)(rand.NextDouble() - 0.5);
+            }
+            return arr;
+        }
+
+        private void Z_Score_Parameters(float[] x, int Size, int dim, float[] mean, float[] std)
+        {
+            float[] Total = new float[dim];
+            int i, j;
+
+            for (i = 0; i < dim; i++)
+            {
+                mean[i] = 0.0f;
+                std[i] = 0.0f;
+                Total[i] = 0.0f;
+            }
+
+            for (i = 0; i < Size; i++)
+            {
+                for (j = 0; j < dim; j++)
+                {
+                    Total[j] += x[i * dim + j];
+                }
+            }
+
+            for (i = 0; i < dim; i++)
+            {
+                mean[i] = Total[i] / Size;
+            }
+
+            for (i = 0; i < Size; i++)
+            {
+                for (j = 0; j < dim; j++)
+                {
+                    float diff = x[i * dim + j] - mean[j];
+                    std[j] += diff * diff;
+                }
+            }
+
+            for (j = 0; j < dim; j++)
+            {
+                std[j] = (float)Math.Sqrt(std[j] / Size);
+            }
+        }
+
+        private int Test_Forward(float[] x, float[] weight, float[] bias, int num_Class, int inputDim)
+        {
+            int i, j, index_Max = 0;
+
+            if (num_Class > 2)
+            {
+                float[] output = new float[num_Class];
+                
+                for (i = 0; i < num_Class; i++)
+                {
+                    output[i] = 0.0f;
+                    for (j = 0; j < inputDim; j++)
+                    {
+                        output[i] += weight[i * inputDim + j] * x[j];
+                    }
+                    output[i] += bias[i];
+                    output[i] = (float)Math.Tanh(output[i]);
+                }
+
+                float temp = output[0];
+                index_Max = 0;
+                for (i = 1; i < num_Class; i++)
+                {
+                    if (temp < output[i])
+                    {
+                        temp = output[i];
+                        index_Max = i;
+                    }
+                }
+            }
+            else
+            {
+                float output = 0.0f;
+                for (j = 0; j < inputDim; j++)
+                {
+                    output += weight[j] * x[j];
+                }
+                output += bias[0];
+                output = (float)Math.Tanh(output);
+                
+                index_Max = (output > 0.0f) ? 0 : 1;
+            }
+
+            return index_Max;
+        }
+
+        // GÜNCELLENMİŞ EĞİTİM FONKSİYONU (Çizgilerle)
+        private void TrainNetwork()
+        {
+            if (numSample == 0)
+            {
+                MessageBox.Show("No samples available for training!");
+                return;
+            }
+
+            errorHistory.Clear();
+            decisionBoundaryHistory.Clear();
+            progressBar1.Visible = true;
+            progressBar1.Value = 0;
+            label4.Text = "Status: Training Started...";
+            trainingGraph.Invalidate();
+            Application.DoEvents();
+
+            float[] mean = new float[inputDim];
+            float[] std = new float[inputDim];
+            Z_Score_Parameters(Samples, numSample, inputDim, mean, std);
+
+            float[] normalizedSamples = new float[numSample * inputDim];
+            for (int i = 0; i < numSample; i++)
+            {
+                for (int j = 0; j < inputDim; j++)
+                {
+                    normalizedSamples[i * inputDim + j] = (Samples[i * inputDim + j] - mean[j]) / std[j];
+                }
+            }
+
+            // Eğitim öncesi ağırlıkları kaydet
+            float[] initialWeights = (float[])Weights.Clone();
+            float[] initialBias = (float[])bias.Clone();
+
+            for (int epoch = 0; epoch < epochs; epoch++)
+            {
+                float totalError = 0.0f;
+
+                for (int sampleIndex = 0; sampleIndex < numSample; sampleIndex++)
+                {
+                    float[] x = new float[inputDim];
+                    Array.Copy(normalizedSamples, sampleIndex * inputDim, x, 0, inputDim);
+                    int target = (int)targets[sampleIndex];
+
+                    if (class_count > 2)
+                    {
+                        float[] outputs = new float[class_count];
+                        float[] errors = new float[class_count];
+
+                        for (int i = 0; i < class_count; i++)
+                        {
+                            outputs[i] = 0.0f;
+                            for (int j = 0; j < inputDim; j++)
+                            {
+                                outputs[i] += Weights[i * inputDim + j] * x[j];
+                            }
+                            outputs[i] += bias[i];
+                            outputs[i] = (float)Math.Tanh(outputs[i]);
+                        }
+
+                        for (int i = 0; i < class_count; i++)
+                        {
+                            float desired = (i == target) ? 1.0f : -1.0f;
+                            errors[i] = desired - outputs[i];
+                            totalError += Math.Abs(errors[i]);
+                        }
+
+                        for (int i = 0; i < class_count; i++)
+                        {
+                            float derivative = 1.0f - outputs[i] * outputs[i];
+                            float delta = errors[i] * derivative;
+
+                            for (int j = 0; j < inputDim; j++)
+                            {
+                                Weights[i * inputDim + j] += learningRate * delta * x[j];
+                            }
+                            bias[i] += learningRate * delta;
+                        }
+                    }
+                    else
+                    {
+                        float output = 0.0f;
+                        for (int j = 0; j < inputDim; j++)
+                        {
+                            output += Weights[j] * x[j];
+                        }
+                        output += bias[0];
+                        output = (float)Math.Tanh(output);
+
+                        float desired = (target == 0) ? 1.0f : -1.0f;
+                        float error = desired - output;
+                        totalError += Math.Abs(error);
+
+                        float derivative = 1.0f - output * output;
+                        float delta = error * derivative;
+
+                        for (int j = 0; j < inputDim; j++)
+                        {
+                            Weights[j] += learningRate * delta * x[j];
+                        }
+                        bias[0] += learningRate * delta;
+                    }
+                }
+
+                float avgError = totalError / numSample;
+                UpdateTrainingGraph(avgError);
+
+                // Her 50 epoch'ta bir karar sınırını göster
+                if (epoch % 50 == 0 && class_count == 2)
+                {
+                    ShowCurrentDecisionBoundary(Weights, bias, epoch);
+                }
+
+                if (epoch % 10 == 0)
+                {
+                    progressBar1.Value = (int)((float)epoch / epochs * 100);
+                    label4.Text = $"Epoch: {epoch}, Error: {avgError:F4}";
+                    Application.DoEvents();
+                }
+            }
+
+            progressBar1.Value = 100;
+            label4.Text = "Status: Training Completed!";
+            progressBar1.Visible = false;
+
+            // SON KARAR SINIRINI KALIN ÇİZ
+            Bitmap finalBitmap = new Bitmap(pictureBox1.Width, pictureBox1.Height);
+            using (Graphics g = Graphics.FromImage(finalBitmap))
+            {
+                g.Clear(SystemColors.ButtonHighlight);
+
+                // Eksenleri çiz
+                Pen axisPen = new Pen(Color.Black, 1.0f);
+                int center_width = pictureBox1.Width / 2;
+                int center_height = pictureBox1.Height / 2;
+                g.DrawLine(axisPen, center_width, 0, center_width, pictureBox1.Height);
+                g.DrawLine(axisPen, 0, center_height, pictureBox1.Width, center_height);
+
+                // SON KARAR SINIRINI KALIN KIRMIZI ÇİZ
+                if (class_count == 2)
+                {
+                    DrawDecisionBoundary(g, Weights, bias, class_count, Color.Red, 3.0f);
+                }
+
+                // Noktaları çiz
+                for (int i = 0; i < numSample; i++)
+                {
+                    int temp_x = (int)Samples[i * inputDim] + center_width;
+                    int temp_y = center_height - (int)Samples[i * inputDim + 1];
+                    draw_sample(g, temp_x, temp_y, (int)targets[i]);
+                }
+
+                axisPen.Dispose();
+            }
+
+            pictureBox1.Image = finalBitmap;
+
+            // Doğruluk hesapla
+            int correct = 0;
+            for (int i = 0; i < numSample; i++)
+            {
+                float[] x = new float[inputDim];
+                Array.Copy(normalizedSamples, i * inputDim, x, 0, inputDim);
+                int predicted = Test_Forward(x, Weights, bias, class_count, inputDim);
+                if (predicted == (int)targets[i])
+                {
+                    correct++;
+                }
+            }
+
+            float accuracy = (float)correct / numSample * 100;
+            textBox1.AppendText($"Training completed!\r\nFinal Error: {errorHistory[errorHistory.Count - 1]:F4}\r\nAccuracy: {accuracy:F2}%\r\n");
+            MessageBox.Show($"Training completed!\nFinal accuracy: {accuracy:F2}%");
+        }
+
+        // ORİJİNAL draw_sample (Graphics olmadan)
+        private void draw_sample(int temp_x, int temp_y, int label)
+        {
+            using (Graphics g = pictureBox1.CreateGraphics())
+            {
+                draw_sample(g, temp_x, temp_y, label);
+            }
+        }
+
+        private void pictureBox1_Paint(object sender, PaintEventArgs e)
+        {
+            Pen pen = new Pen(Color.Black, 1.0f);
+            int center_width = pictureBox1.Width / 2;
+            int center_height = pictureBox1.Height / 2;
+            
+            e.Graphics.DrawLine(pen, center_width, 0, center_width, pictureBox1.Height);
+            e.Graphics.DrawLine(pen, 0, center_height, pictureBox1.Width, center_height);
+            pen.Dispose();
+        }
+
+        private void pictureBox1_MouseClick(object sender, MouseEventArgs e)
+        {
+            if (class_count == 0)
+            {
+                MessageBox.Show("The Network Architecture should be firstly set up");
+            }
+            else
+            {
+                float[] x = new float[inputDim];
+                int temp_x = e.X;
+                int temp_y = e.Y;
+                x[0] = temp_x - (pictureBox1.Width / 2);
+                x[1] = (pictureBox1.Height / 2) - temp_y;
+                
+                int numLabel = Convert.ToInt32(ClassNoBox.Text);
+                if (numLabel > class_count)
+                {
+                    MessageBox.Show("The class label cannot be greater than the maximum number of classes.");
+                }
+                else
+                {
+                    int label = numLabel - 1;
+                    
+                    if (numSample == 0)
+                    {
+                        numSample = 1;
+                        Samples = new float[numSample * inputDim];
+                        targets = new float[numSample];
+                        Array.Copy(x, Samples, inputDim);
+                        targets[0] = label;
+                    }
+                    else
+                    {
+                        numSample++;
+                        Samples = Add_Data(Samples, numSample, x, inputDim);
+                        targets = Add_Labels(targets, numSample, label);
+                    }
+                    
+                    draw_sample(temp_x, temp_y, label);
+                    label3.Text = "Samples Count: " + numSample.ToString();
+                    
+                    if (numSample > 0)
+                    {
+                        Train_Button.Enabled = true;
+                        trainingToolStripMenuItem.Enabled = true;
+                    }
+                }
+            }
+        }
+
+        private void Set_Net_Click(object sender, EventArgs e)
+        {
+            class_count = Convert.ToInt32(ClassCountBox.Text);
+            Weights = new float[class_count * inputDim];
+            bias = new float[class_count];
+            
+            Weights = init_array_random(class_count * inputDim);
+            bias = init_array_random(class_count);
+            
+            Set_Net.Text = "Network is Ready";
+            label4.Text = "Status: Network Ready for Training";
+        }
+
+        private void Train_Button_Click(object sender, EventArgs e)
+        {
+            TrainNetwork();
+        }
+
+        private void trainingToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            TrainNetwork();
+        }
+
+        private void readDataToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show("Read Data functionality will be implemented");
+        }
+
+        private void saveDataToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (numSample != 0)
+            {
+                MessageBox.Show("Data saved successfully!");
+            }
+            else
+            {
+                MessageBox.Show("At least one sample should be given");
+            }
+        }
+
+        private void testingToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (numSample == 0)
+            {
+                MessageBox.Show("No samples available for testing");
+                return;
+            }
+
+            float[] mean = new float[inputDim];
+            float[] std = new float[inputDim];
+            
+            Z_Score_Parameters(Samples, numSample, inputDim, mean, std);
+            
+            Bitmap surface = new Bitmap(pictureBox1.Width, pictureBox1.Height);
+            
+            for (int row = 0; row < pictureBox1.Height; row += 2)
+            {
+                for (int column = 0; column < pictureBox1.Width; column += 2)
+                {
+                    float[] x = new float[inputDim];
+                    x[0] = column - (pictureBox1.Width / 2);
+                    x[1] = (pictureBox1.Height / 2) - row;
+                    
+                    x[0] = (x[0] - mean[0]) / std[0];
+                    x[1] = (x[1] - mean[1]) / std[1];
+                    
+                    int predictedClass = Test_Forward(x, Weights, bias, class_count, inputDim);
+                    
+                    Color c = Color.Black;
+                    switch (predictedClass)
+                    {
+                        case 0: c = Color.Black; break;
+                        case 1: c = Color.Red; break;
+                        case 2: c = Color.Blue; break;
+                        case 3: c = Color.Green; break;
+                        case 4: c = Color.Yellow; break;
+                        case 5: c = Color.Orange; break;
+                        default: c = Color.Purple; break;
+                    }
+                    
+                    surface.SetPixel(column, row, c);
+                }
+            }
+            
+            pictureBox1.Image = surface;
+            
+            for (int i = 0; i < numSample; i++)
+            {
+                int temp_x = (int)Samples[i * inputDim] + (pictureBox1.Width / 2);
+                int temp_y = (pictureBox1.Height / 2) - (int)Samples[i * inputDim + 1];
+                draw_sample(temp_x, temp_y, (int)targets[i]);
+            }
+            
+            MessageBox.Show("Testing completed! Decision boundaries drawn.");
+        }
+    }
+}
